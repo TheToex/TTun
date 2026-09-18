@@ -1,0 +1,145 @@
+#!/bin/bash
+# bin/ttun
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+CONFIG_DIR="/etc/ttun"
+
+if [ "$EUID" -ne 0 ]; then
+  echo -e "${RED}Error: Please run as root (sudo ttun)${NC}"
+  exit 1
+fi
+
+show_menu() {
+    clear
+    echo -e "${CYAN}=======================================${NC}"
+    echo -e "${GREEN}          TTun Tunnel Manager          ${NC}"
+    echo -e "${CYAN}=======================================${NC}"
+    echo -e "${YELLOW}1)${NC} Create a new tunnel"
+    echo -e "${YELLOW}2)${NC} Manage existing tunnels"
+    echo -e "${YELLOW}0)${NC} Exit"
+    echo -e "${CYAN}---------------------------------------${NC}"
+    read -p "Select an option: " choice
+    case $choice in
+        1) create_tunnel ;;
+        2) manage_tunnels ;;
+        0) exit 0 ;;
+        *) show_menu ;;
+    esac
+}
+
+create_tunnel() {
+    clear
+    echo -e "${GREEN}--- Create New Tunnel ---${NC}"
+    read -p "Enter tunnel name (default: tun0): " tun_name
+    tun_name=${tun_name:-tun0}
+    
+    if [ -f "$CONFIG_DIR/$tun_name.conf" ]; then
+        echo -e "${RED}Tunnel $tun_name already exists!${NC}"
+        sleep 2
+        show_menu
+        return
+    fi
+
+    echo -e "\n${CYAN}What is the role of this machine?${NC}"
+    echo "1) Server"
+    echo "2) Client"
+    read -p "Select role: " role
+    
+    read -p "Local Port [e.g., 5000]: " local_port
+    read -p "Remote IP: " remote_ip
+    read -p "Remote Port [e.g., 5000]: " remote_port
+
+    if [ "$role" == "1" ]; then 
+        default_ip="10.0.0.1/24"
+    else 
+        default_ip="10.0.0.2/24"
+    fi
+
+    read -p "Virtual Network IP (TUN IP) [default: $default_ip]: " tun_ip
+    tun_ip=${tun_ip:-$default_ip}
+
+    # Generate config file
+    cat <<CONF > "$CONFIG_DIR/$tun_name.conf"
+LOCAL_PORT=$local_port
+REMOTE_IP=$remote_ip
+REMOTE_PORT=$remote_port
+TUN_IP=$tun_ip
+CONF
+
+    systemctl enable --now ttun@$tun_name >/dev/null 2>&1
+    echo -e "\n${GREEN}[✔] Tunnel $tun_name created and started successfully!${NC}"
+    sleep 3
+    show_menu
+}
+
+manage_tunnels() {
+    clear
+    echo -e "${GREEN}--- Existing Tunnels ---${NC}"
+    configs=$(ls $CONFIG_DIR/*.conf 2>/dev/null)
+    
+    if [ -z "$configs" ]; then
+        echo -e "${YELLOW}No tunnels found.${NC}"
+        read -p "Press Enter to go back..."
+        show_menu
+        return
+    fi
+
+    for f in $configs; do
+        name=$(basename "$f" .conf)
+        if systemctl is-active --quiet ttun@$name; then
+            echo -e "🟢 ${CYAN}$name${NC} : ${GREEN}Running${NC}"
+        else
+            echo -e "🔴 ${CYAN}$name${NC} : ${RED}Stopped${NC}"
+        fi
+    done
+
+    echo -e "\n${CYAN}---------------------------------------${NC}"
+    echo -e "Type tunnel name to manage (or press Enter to go back):"
+    read tun_name
+    
+    if [ -z "$tun_name" ]; then 
+        show_menu
+        return
+    fi
+
+    if [ ! -f "$CONFIG_DIR/$tun_name.conf" ]; then
+        echo -e "${RED}Tunnel not found!${NC}"
+        sleep 2
+        manage_tunnels
+        return
+    fi
+
+    echo -e "\n${YELLOW}Actions for $tun_name :${NC}"
+    echo "1) Start"
+    echo "2) Stop"
+    echo "3) Delete Tunnel"
+    read -p "Select action: " action
+
+    case $action in
+        1) 
+           systemctl start ttun@$tun_name
+           echo "Started."
+           sleep 1 
+           ;;
+        2) 
+           systemctl stop ttun@$tun_name
+           echo "Stopped."
+           sleep 1 
+           ;;
+        3) 
+           systemctl stop ttun@$tun_name >/dev/null 2>&1
+           systemctl disable ttun@$tun_name >/dev/null 2>&1
+           rm "$CONFIG_DIR/$tun_name.conf"
+           echo -e "${GREEN}Tunnel deleted.${NC}"
+           sleep 1
+           ;;
+    esac
+    manage_tunnels
+}
+
+show_menu

@@ -1,3 +1,4 @@
+// src/ttun-core.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,32 +13,30 @@
 
 #define BUFFER_SIZE 2048
 
-// تابع ایجاد و تخصیص کارت شبکه مجازی (TUN)
+// Function to allocate a virtual TUN interface
 int tun_alloc(char *dev) {
     struct ifreq ifr;
     int fd;
 
-    // باز کردن دستگاه تونل در سیستم‌عامل
     if ((fd = open("/dev/net/tun", O_RDWR)) < 0) {
         perror("Error opening /dev/net/tun");
-        exit(1);
+        return -1;
     }
 
     memset(&ifr, 0, sizeof(ifr));
     
-    // IFF_TUN: کار با بسته‌های لایه ۳ (IP)
-    // IFF_NO_PI: حذف هدرهای اضافی سیستم‌عامل از بسته‌ها
+    // IFF_TUN: Layer 3 packets (IP)
+    // IFF_NO_PI: Do not provide packet information
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
     
     if (*dev) {
         strncpy(ifr.ifr_name, dev, IFNAMSIZ);
     }
 
-    // ثبت رابط مجازی در کرنل لینوکس
-    if (ioctl(fd, TUNSETIFF, (void *)&ifr) < 0) {
+    if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
         perror("Error with ioctl TUNSETIFF");
         close(fd);
-        exit(1);
+        return -1;
     }
     
     strcpy(dev, ifr.ifr_name);
@@ -45,20 +44,27 @@ int tun_alloc(char *dev) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <local_port> <remote_ip> <remote_port>\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <local_port> <remote_ip> <remote_port> [tun_name]\n", argv[0]);
         exit(1);
     }
 
     int local_port = atoi(argv[1]);
     char *remote_ip = argv[2];
     int remote_port = atoi(argv[3]);
+    
+    // Changed default interface name to TTun
+    char tun_name[IFNAMSIZ] = "TTun";
+    if (argc >= 5) {
+        strncpy(tun_name, argv[4], IFNAMSIZ - 1);
+    }
 
-    char tun_name[IFNAMSIZ] = "tun0";
     int tun_fd = tun_alloc(tun_name);
-    printf("[*] Interface %s created successfully.\n", tun_name);
+    if (tun_fd < 0) {
+        exit(1);
+    }
 
-    // ایجاد سوکت UDP برای انتقال داده‌ها در اینترنت
+    // Create UDP Socket
     int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock_fd < 0) {
         perror("Socket creation failed");
@@ -81,39 +87,34 @@ int main(int argc, char *argv[]) {
     remote_addr.sin_port = htons(remote_port);
     inet_pton(AF_INET, remote_ip, &remote_addr.sin_addr);
 
-    printf("[*] Tunnel running. UDP bound to port %d. Forwarding to %s:%d\n", local_port, remote_ip, remote_port);
-
     int max_fd = (tun_fd > sock_fd) ? tun_fd : sock_fd;
     fd_set rd_set;
     char buffer[BUFFER_SIZE];
 
-    // حلقه اصلی برنامه
+    // Main event loop
     while (1) {
         FD_ZERO(&rd_set);
         FD_SET(tun_fd, &rd_set);
         FD_SET(sock_fd, &rd_set);
 
-        // استفاده از select برای گوش دادن همزمان به TUN و UDP
         int ret = select(max_fd + 1, &rd_set, NULL, NULL, NULL);
         if (ret < 0) {
             perror("Select error");
             break;
         }
 
-        // 1. اگر بسته جدیدی از کارت شبکه مجازی دریافت شد (ارسال شده از سیستم‌عامل)
+        // Read from TUN interface and send to UDP socket
         if (FD_ISSET(tun_fd, &rd_set)) {
             int nread = read(tun_fd, buffer, sizeof(buffer));
             if (nread > 0) {
-                // ارسال بسته IP خام از طریق UDP به سرور/کلاینت مقابل
                 sendto(sock_fd, buffer, nread, 0, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
             }
         }
 
-        // 2. اگر بسته UDP جدیدی از شبکه (اینترنت) دریافت شد
+        // Read from UDP socket and write to TUN interface
         if (FD_ISSET(sock_fd, &rd_set)) {
             int nread = recvfrom(sock_fd, buffer, sizeof(buffer), 0, NULL, NULL);
             if (nread > 0) {
-                // تزریق بسته دریافت شده به داخل کارت شبکه مجازی سیستم‌عامل
                 write(tun_fd, buffer, nread);
             }
         }
