@@ -1,42 +1,42 @@
 #!/bin/bash
-# install.sh
+# Universal Installer for TTun
 
 if [ "$EUID" -ne 0 ]; then
-  echo -e "\033[31mError: Please run this script as root (sudo ./install.sh)\033[0m"
+  echo -e "\033[31mError: Please run this script as root (sudo bash)\033[0m"
   exit 1
 fi
 
-echo -e "\033[34m[*] Detecting OS and installing dependencies...\033[0m"
+REPO_URL="https://github.com/YOUR_USERNAME/ttun.git"
+TMP_DIR="/tmp/ttun_build"
+
+echo -e "\033[34m[*] Installing dependencies...\033[0m"
 if command -v apt-get >/dev/null; then
-    apt-get update && apt-get install -y gcc make iproute2
+    apt-get update && apt-get install -y gcc make git iproute2
 elif command -v pacman >/dev/null; then
-    pacman -Sy --noconfirm gcc make iproute2
+    pacman -Sy --noconfirm gcc make git iproute2
 elif command -v dnf >/dev/null; then
-    dnf install -y gcc make iproute
+    dnf install -y gcc make git iproute
 else
-    echo -e "\033[31m[-] Unsupported Package Manager. Please install gcc and iproute2 manually.\033[0m"
+    echo -e "\033[31m[-] Unsupported OS. Please install gcc, make, and git manually.\033[0m"
     exit 1
 fi
 
-echo -e "\033[34m[*] Compiling TTun Core Engine...\033[0m"
-if [ ! -f "src/ttun-core.c" ]; then
-    echo -e "\033[31m[-] Error: src/ttun-core.c not found!\033[0m"
-    exit 1
-fi
-
-gcc src/ttun-core.c -o /usr/bin/ttun-core -O2
+echo -e "\033[34m[*] Downloading TTun source code...\033[0m"
+rm -rf $TMP_DIR
+git clone $REPO_URL $TMP_DIR
 if [ $? -ne 0 ]; then
-    echo -e "\033[31m[-] Compilation failed!\033[0m"
+    echo -e "\033[31m[-] Failed to download the repository.\033[0m"
     exit 1
 fi
 
-echo -e "\033[34m[*] Installing Services and CLI manager...\033[0m"
-mkdir -p /etc/ttun
-cp systemd/ttun@.service /etc/systemd/system/
-systemctl daemon-reload
+echo -e "\033[34m[*] Compiling and Installing TTun...\033[0m"
+cd $TMP_DIR
+make
+make install
 
-cp bin/ttun /usr/bin/ttun
-chmod +x /usr/bin/ttun
+echo -e "\033[34m[*] Cleaning up...\033[0m"
+cd /
+rm -rf $TMP_DIR
 
 echo -e "\n\033[32m[✔] TTun Installed Successfully!\033[0m"
 echo -e "Type \033[1;33msudo ttun\033[0m anywhere in your terminal to start."
