@@ -21,20 +21,16 @@ It provides an interactive CLI manager that makes it easy to create, configure, 
 
 ---
 
-## 📥 Installation
+## ⚡ Quick Install
 
-Install TTun on **both the server and client machines**.
+Install TTun with a single command:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/ttun.git
-cd ttun
-chmod +x install.sh
-sudo ./install.sh
+curl -fsSL https://raw.githubusercontent.com/TheToex/ttun/main/install.sh | sudo bash
 ```
 
-After installation, the `ttun` command will be available system-wide.
+Run this command on **both the server and client machines**.
 
----
 
 ## 🚀 Usage
 
