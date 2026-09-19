@@ -13,114 +13,123 @@
 
 #define BUFFER_SIZE 2048
 
-// Function to allocate a virtual TUN interface
+// Ensure all bytes are sent over the TCP stream
+int send_all(int socket, void *buffer, size_t length) {
+    char *ptr = (char*) buffer;
+    while (length > 0) {
+        int i = send(socket, ptr, length, 0);
+        if (i < 1) return -1;
+        ptr += i;
+        length -= i;
+    }
+    return 0;
+}
+
+// Ensure exact number of bytes are read from the TCP stream
+int recv_all(int socket, void *buffer, size_t length) {
+    char *ptr = (char*) buffer;
+    while (length > 0) {
+        int i = recv(socket, ptr, length, 0);
+        if (i < 1) return -1;
+        ptr += i;
+        length -= i;
+    }
+    return 0;
+}
+
+// Allocate virtual TUN interface
 int tun_alloc(char *dev) {
     struct ifreq ifr;
     int fd;
-
-    if ((fd = open("/dev/net/tun", O_RDWR)) < 0) {
-        perror("Error opening /dev/net/tun");
-        return -1;
-    }
-
+    if ((fd = open("/dev/net/tun", O_RDWR)) < 0) return -1;
     memset(&ifr, 0, sizeof(ifr));
-    
-    // IFF_TUN: Layer 3 packets (IP)
-    // IFF_NO_PI: Do not provide packet information
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI; 
-    
-    if (*dev) {
-        strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-    }
-
-    if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
-        perror("Error with ioctl TUNSETIFF");
-        close(fd);
-        return -1;
-    }
-    
+    if (*dev) strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+    if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) { close(fd); return -1; }
     strcpy(dev, ifr.ifr_name);
     return fd;
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 4) {
-        fprintf(stderr, "Usage: %s <local_port> <remote_ip> <remote_port> [tun_name]\n", argv[0]);
-        exit(1);
-    }
+    // Usage: ttun-core <role> <local_port> <remote_ip> <remote_port> <tun_name>
+    if (argc < 6) return 1;
 
-    int local_port = atoi(argv[1]);
-    char *remote_ip = argv[2];
-    int remote_port = atoi(argv[3]);
-    
-    // Changed default interface name to TTun
-    char tun_name[IFNAMSIZ] = "TTun";
-    if (argc >= 5) {
-        strncpy(tun_name, argv[4], IFNAMSIZ - 1);
-    }
+    char *role = argv[1]; // "server" or "client"
+    int local_port = atoi(argv[2]);
+    char *remote_ip = argv[3];
+    int remote_port = atoi(argv[4]);
+    char *tun_name = argv[5];
 
     int tun_fd = tun_alloc(tun_name);
-    if (tun_fd < 0) {
-        exit(1);
+    if (tun_fd < 0) exit(1);
+
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int conn_fd = -1;
+
+    if (strcmp(role, "server") == 0) {
+        int opt = 1;
+        setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        struct sockaddr_in server_addr;
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+        server_addr.sin_port = htons(local_port);
+        
+        bind(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
+        listen(sock_fd, 1);
+        printf("[*] TTun TCP Server listening on port %d...\n", local_port);
+        
+        conn_fd = accept(sock_fd, NULL, NULL);
+        printf("[+] Client connected!\n");
+    } else {
+        struct sockaddr_in server_addr;
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(remote_port);
+        inet_pton(AF_INET, remote_ip, &server_addr.sin_addr);
+        
+        printf("[*] TTun TCP Client connecting to %s:%d...\n", remote_ip, remote_port);
+        while (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+            sleep(2); // Keep retrying if server is offline
+        }
+        conn_fd = sock_fd;
+        printf("[+] Connected to Server!\n");
     }
 
-    // Create UDP Socket
-    int sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock_fd < 0) {
-        perror("Socket creation failed");
-        exit(1);
-    }
-
-    struct sockaddr_in local_addr, remote_addr;
-    memset(&local_addr, 0, sizeof(local_addr));
-    local_addr.sin_family = AF_INET;
-    local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    local_addr.sin_port = htons(local_port);
-
-    if (bind(sock_fd, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
-        perror("Socket bind failed");
-        exit(1);
-    }
-
-    memset(&remote_addr, 0, sizeof(remote_addr));
-    remote_addr.sin_family = AF_INET;
-    remote_addr.sin_port = htons(remote_port);
-    inet_pton(AF_INET, remote_ip, &remote_addr.sin_addr);
-
-    int max_fd = (tun_fd > sock_fd) ? tun_fd : sock_fd;
     fd_set rd_set;
     char buffer[BUFFER_SIZE];
 
-    // Main event loop
+    // Main TCP forwarding loop
     while (1) {
         FD_ZERO(&rd_set);
         FD_SET(tun_fd, &rd_set);
-        FD_SET(sock_fd, &rd_set);
-
-        int ret = select(max_fd + 1, &rd_set, NULL, NULL, NULL);
-        if (ret < 0) {
-            perror("Select error");
-            break;
-        }
-
-        // Read from TUN interface and send to UDP socket
+        FD_SET(conn_fd, &rd_set);
+        int max_fd = (tun_fd > conn_fd) ? tun_fd : conn_fd;
+        
+        if (select(max_fd + 1, &rd_set, NULL, NULL, NULL) < 0) break;
+        
+        // 1. Read from TUN, write to TCP
         if (FD_ISSET(tun_fd, &rd_set)) {
             int nread = read(tun_fd, buffer, sizeof(buffer));
             if (nread > 0) {
-                sendto(sock_fd, buffer, nread, 0, (struct sockaddr *)&remote_addr, sizeof(remote_addr));
+                uint16_t len = htons(nread); // Prefix packet with its length
+                if (send_all(conn_fd, &len, 2) < 0) break;
+                if (send_all(conn_fd, buffer, nread) < 0) break;
             }
         }
-
-        // Read from UDP socket and write to TUN interface
-        if (FD_ISSET(sock_fd, &rd_set)) {
-            int nread = recvfrom(sock_fd, buffer, sizeof(buffer), 0, NULL, NULL);
-            if (nread > 0) {
-                write(tun_fd, buffer, nread);
-            }
+        
+        // 2. Read from TCP, write to TUN
+        if (FD_ISSET(conn_fd, &rd_set)) {
+            uint16_t len;
+            if (recv_all(conn_fd, &len, 2) < 0) break; // Read length prefix
+            len = ntohs(len);
+            if (recv_all(conn_fd, buffer, len) < 0) break; // Read exact packet
+            write(tun_fd, buffer, len);
         }
     }
 
     close(tun_fd);
-    close(sock_fd);
-    return 0;
+    close(conn_fd);
+    if(sock_fd != conn_fd) close(sock_fd);
+    return 0; // Systemd will auto-restart the service on exit
 }

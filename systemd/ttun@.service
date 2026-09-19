@@ -1,13 +1,12 @@
 [Unit]
-Description=TTun Interface (%i)
+Description=TTun TCP Interface (%i)
 After=network.target
 
 [Service]
 Type=simple
 EnvironmentFile=/etc/ttun/%i.conf
-ExecStart=/usr/bin/ttun-core ${LOCAL_PORT} ${REMOTE_IP} ${REMOTE_PORT} %i
+ExecStart=/usr/bin/ttun-core ${ROLE} ${LOCAL_PORT} ${REMOTE_IP} ${REMOTE_PORT} %i
 
-# Wait for the TUN interface to be created, then assign the IP
 ExecStartPost=/bin/sleep 1
 ExecStartPost=/usr/bin/ip addr add ${TUN_IP} dev %i
 ExecStartPost=/usr/bin/ip link set %i up
