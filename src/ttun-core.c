@@ -51,6 +51,8 @@ int tun_alloc(char *dev) {
 }
 
 int main(int argc, char *argv[]) {
+    setbuf(stdout, NULL);
+    setbuf(stderr, NULL);
     // Usage: ttun-core <role> <local_port> <remote_ip> <remote_port> <tun_name>
     if (argc < 6) return 1;
 
