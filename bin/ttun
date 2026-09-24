@@ -55,6 +55,12 @@ create_tunnel() {
         read -p "Local Listen Port [e.g., 5000]: " local_port
         remote_ip="0.0.0.0"
         remote_port="0"
+
+        echo -e "${CYAN}[*] Opening port $local_port in firewall...${NC}"
+        iptables -I INPUT -p tcp --dport "$local_port" -j ACCEPT 2>/dev/null || true
+        if command -v ufw >/dev/null 2>&1; then
+            ufw allow "$local_port"/tcp >/dev/null 2>&1 || true
+        fi
     else
         role_str="client"
         default_ip="10.0.0.2/24"
@@ -65,6 +71,10 @@ create_tunnel() {
 
     read -p "Virtual Network IP (TUN IP) [default: $default_ip]: " tun_ip
     tun_ip=${tun_ip:-$default_ip}
+
+    # Allow TUN interface in firewall
+    iptables -I INPUT -i "$tun_name" -j ACCEPT 2>/dev/null || true
+    iptables -I FORWARD -i "$tun_name" -j ACCEPT 2>/dev/null || true
 
     cat <<CONF > "$CONFIG_DIR/$tun_name.conf"
 ROLE=$role_str

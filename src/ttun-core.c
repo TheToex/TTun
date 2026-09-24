@@ -134,5 +134,5 @@ int main(int argc, char *argv[]) {
     close(tun_fd);
     close(conn_fd);
     if(sock_fd != conn_fd) close(sock_fd);
-    return 0; // Systemd will auto-restart the service on exit
+    return 1; // Return 1 so Systemd (Restart=always/on-failure) will auto-restart the service
 }

@@ -11,7 +11,7 @@ ExecStartPost=/bin/sleep 1
 ExecStartPost=/usr/bin/ip addr add ${TUN_IP} dev %i
 ExecStartPost=/usr/bin/ip link set %i up
 
-Restart=on-failure
+Restart=always
 RestartSec=3
 
 [Install]
