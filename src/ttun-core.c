@@ -90,7 +90,9 @@ int main(int argc, char *argv[]) {
         
         printf("[*] TTun TCP Client connecting to %s:%d...\n", remote_ip, remote_port);
         while (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+            close(sock_fd);
             sleep(2); // Keep retrying if server is offline
+            sock_fd = socket(AF_INET, SOCK_STREAM, 0);
         }
         conn_fd = sock_fd;
         printf("[+] Connected to Server!\n");
@@ -123,6 +125,7 @@ int main(int argc, char *argv[]) {
             uint16_t len;
             if (recv_all(conn_fd, &len, 2) < 0) break; // Read length prefix
             len = ntohs(len);
+            if (len > sizeof(buffer)) break; // Prevent buffer overflow
             if (recv_all(conn_fd, buffer, len) < 0) break; // Read exact packet
             write(tun_fd, buffer, len);
         }

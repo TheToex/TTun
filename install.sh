@@ -6,7 +6,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-REPO_URL="https://github.com/TheToex/ttun.git"
+REPO_URL="https://github.com/TheToex/TTun.git"
 TMP_DIR="/tmp/ttun_build"
 
 echo -e "\033[34m[*] Installing dependencies...\033[0m"

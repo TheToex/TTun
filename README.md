@@ -26,7 +26,7 @@ It provides an interactive CLI manager that makes it easy to create, configure, 
 Install TTun with a single command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/TheToex/ttun/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/TheToex/TTun/main/install.sh | sudo bash
 ```
 
 Run this command on **both the server and client machines**.
