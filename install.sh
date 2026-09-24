@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 # Universal Installer for TTun
 
 if [ "$EUID" -ne 0 ]; then
