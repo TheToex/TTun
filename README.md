@@ -1,6 +1,6 @@
 # TTun — Toex Tunnel
 
-**TTun (Toex Tunnel)** is a lightweight and high-performance **Layer 3 UDP tunnel** written in pure C for Linux.
+**TTun (Toex Tunnel)** is a lightweight and high-performance **Layer 3 TCP tunnel** written in pure C for Linux.
 
 It provides an interactive CLI manager that makes it easy to create, configure, and manage multiple tunnels without dealing with complex commands manually.
 
@@ -147,13 +147,13 @@ TTun operates at **Layer 3** using Linux TUN interfaces.
 │   TTun TUN   │                         │   TTun TUN   │
 │  10.0.0.2/24 │                         │  10.0.0.1/24 │
 │      │       │                         │      ▲       │
-│      ▼       │      UDP Tunnel         │      │       │
+│      ▼       │      TCP Tunnel         │      │       │
 │   TTun Core  │════════════════════════▶│   TTun Core  │
 │      │       │◀════════════════════════│      │       │
 └──────────────┘                         └──────────────┘
 ```
 
-The TUN interface provides a virtual Layer 3 network device, while TTun transports IP packets between the endpoints over UDP.
+The TUN interface provides a virtual Layer 3 network device, while TTun transports IP packets between the endpoints over TCP.
 
 ---
 
