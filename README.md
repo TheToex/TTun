@@ -4,24 +4,23 @@
 
 It provides an interactive CLI manager that makes it easy to create, configure, and manage multiple tunnels without dealing with complex commands manually.
 
-## ✨ Features
+## Features
 
-* ⚡ **High Performance** — Core engine written in pure C with minimal overhead.
-* 🌐 **Layer 3 Forwarding** — Intercepts and forwards raw IP packets through virtual **TUN interfaces**.
-* 🖥️ **Interactive CLI Manager** — Manage your tunnels through a simple and user-friendly Bash interface using the `ttun` command.
-* 🔀 **Multi-Tunnel Support** — Run multiple tunnels simultaneously (`TTun`, `TTun1`, `TTun2`, ...).
-* 📦 **Automatic Installation** — Supports major Linux distributions out of the box:
-
+* **High Performance** — Core engine written in pure C with minimal overhead.
+* **Layer 3 Forwarding** — Intercepts and forwards raw IP packets through virtual **TUN interfaces**.
+* **Interactive CLI Manager** — Manage your tunnels through a simple and user-friendly Bash interface using the `ttun` command.
+* **Multi-Tunnel Support** — Run multiple tunnels simultaneously (`TTun`, `TTun1`, `TTun2`, ...).
+* **Automatic Installation** — Supports major Linux distributions out of the box:
   * Ubuntu
   * Debian
   * Arch Linux
   * CentOS / Fedora
-* ⚙️ **Systemd Integration** — Tunnels can run as background `systemd` services.
-* 🛠️ **Easy Management** — Create, start, stop, restart, and remove tunnels from the interactive manager.
+* **Systemd Integration** — Tunnels run as background `systemd` services with auto-restart capabilities.
+* **Easy Management** — Create, start, stop, restart, view live logs, and remove tunnels from the interactive manager.
 
 ---
 
-## ⚡ Quick Install
+## Quick Install
 
 Install TTun with a single command:
 
@@ -31,8 +30,9 @@ curl -fsSL https://raw.githubusercontent.com/TheToex/TTun/main/install.sh | sudo
 
 Run this command on **both the server and client machines**.
 
+---
 
-## 🚀 Usage
+## Usage
 
 Launch the interactive TTun manager:
 
@@ -47,7 +47,6 @@ The interactive menu allows you to:
 The wizard will guide you through the required configuration:
 
 1. Select the tunnel role:
-
    * **Server**
    * **Client**
 2. Configure the required IP addresses and ports.
@@ -67,7 +66,7 @@ TTun
 From the same interactive menu, you can:
 
 * View all configured tunnels
-* Check tunnel status
+* Check tunnel status and live logs
 * Start tunnels
 * Stop tunnels
 * Restart tunnels
@@ -76,7 +75,7 @@ From the same interactive menu, you can:
 
 ---
 
-## 🌐 Example Network Topology
+## Example Network Topology
 
 TTun creates a virtual Layer 3 network between the server and client.
 
@@ -107,7 +106,7 @@ If the tunnel is working correctly, both sides should be able to reach each othe
 
 ---
 
-## 🔎 Checking the TUN Interface
+## Checking the TUN Interface
 
 You can inspect the TTun interface and its assigned IP address with:
 
@@ -115,7 +114,7 @@ You can inspect the TTun interface and its assigned IP address with:
 ip addr show TTun
 ```
 
-For multiple tunnels, the interface names may look like:
+For multiple tunnels, the interface names look like:
 
 ```text
 TTun
@@ -133,7 +132,7 @@ ip link show
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 TTun operates at **Layer 3** using Linux TUN interfaces.
 
@@ -157,25 +156,26 @@ The TUN interface provides a virtual Layer 3 network device, while TTun transpor
 
 ---
 
-## 📂 Project Structure
-
-A typical TTun installation contains:
+## Project Structure
 
 ```text
-ttun/
-├── install.sh
+TTun/
+├── bin/
+│   └── ttun
 ├── src/
-│   └── ...
-├── config/
-│   └── ...
+│   └── ttun-core.c
+├── systemd/
+│   └── ttun@.service
+├── Makefile
+├── install.sh
 └── README.md
 ```
 
-The installer handles the required setup and integration with the system.
+The installer handles the required compilation, setup, and integration with the system.
 
 ---
 
-## 🐧 Supported Distributions
+## Supported Distributions
 
 TTun is designed to work out of the box on:
 
@@ -185,33 +185,32 @@ TTun is designed to work out of the box on:
 * Fedora
 * CentOS
 
-Other Linux distributions may work as well, provided they support:
+Other Linux distributions work as well, provided they support:
 
 * Linux TUN interfaces
 * `systemd`
 * Bash
-* Standard networking utilities
+* Standard networking utilities (`iproute2`, `iptables` / `nftables`)
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 * Linux
 * Root / `sudo` access
 * Bash
 * `systemd`
-* TUN/TAP support
-* GCC or another C compiler during installation
+* TUN/TAP kernel support
+* GCC and Make during installation
 
 ---
 
-## 📜 License
+## License
 
 TTun is released under the **MIT License**.
-
 
 ---
 
 <p align="center">
-  Made with C & by <b>TheToex</b>
+  Made with C by <b>TheToex</b>
 </p>
