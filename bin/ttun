@@ -52,7 +52,8 @@ create_tunnel() {
     if [ "$role_choice" == "1" ]; then
         role_str="server"
         default_ip="10.0.0.1/24"
-        read -p "Local Listen Port [e.g., 5000]: " local_port
+        read -p "Local Listen Port (default: 5000): " local_port
+        local_port=${local_port:-5000}
         remote_ip="0.0.0.0"
         remote_port="0"
 
@@ -61,21 +62,37 @@ create_tunnel() {
         if command -v ufw >/dev/null 2>&1; then
             ufw allow "$local_port"/tcp >/dev/null 2>&1 || true
         fi
+        if command -v firewall-cmd >/dev/null 2>&1; then
+            firewall-cmd --add-port="$local_port"/tcp --permanent >/dev/null 2>&1 || true
+            firewall-cmd --reload >/dev/null 2>&1 || true
+        fi
     else
         role_str="client"
         default_ip="10.0.0.2/24"
         local_port="0"
-        read -p "Remote Server IP: " remote_ip
-        read -p "Remote Server Port [e.g., 5000]: " remote_port
+        read -p "Remote Server IP / Hostname: " remote_ip
+        while [ -z "$remote_ip" ]; do
+            echo -e "${RED}Remote Server IP cannot be empty!${NC}"
+            read -p "Remote Server IP / Hostname: " remote_ip
+        done
+        read -p "Remote Server Port (default: 5000): " remote_port
+        remote_port=${remote_port:-5000}
     fi
 
     read -p "Virtual Network IP (TUN IP) [default: $default_ip]: " tun_ip
     tun_ip=${tun_ip:-$default_ip}
+    if [[ "$tun_ip" != *"/"* ]]; then
+        tun_ip="$tun_ip/24"
+    fi
 
     # Allow TUN interface in firewall
     iptables -I INPUT -i "$tun_name" -j ACCEPT 2>/dev/null || true
     iptables -I FORWARD -i "$tun_name" -j ACCEPT 2>/dev/null || true
+    if command -v ufw >/dev/null 2>&1; then
+        ufw allow in on "$tun_name" >/dev/null 2>&1 || true
+    fi
 
+    mkdir -p "$CONFIG_DIR"
     cat <<CONF > "$CONFIG_DIR/$tun_name.conf"
 ROLE=$role_str
 LOCAL_PORT=$local_port
@@ -84,9 +101,11 @@ REMOTE_PORT=$remote_port
 TUN_IP=$tun_ip
 CONF
 
+    systemctl daemon-reload
     systemctl enable --now ttun@$tun_name >/dev/null 2>&1
+    systemctl restart ttun@$tun_name >/dev/null 2>&1
     echo -e "\n${GREEN}[✔] TCP Tunnel $tun_name created and started!${NC}"
-    sleep 3
+    sleep 2
     show_menu
 }
 
@@ -116,16 +135,25 @@ manage_tunnels() {
     fi
 
     echo -e "\n${YELLOW}Actions for $tun_name :${NC}"
-    echo "1) Start"; echo "2) Stop"; echo "3) Delete Tunnel"
+    echo "1) Start"
+    echo "2) Stop"
+    echo "3) Restart"
+    echo "4) Status & Live Logs"
+    echo "5) Delete Tunnel"
     read -p "Select action: " action
 
     case $action in
         1) systemctl start ttun@$tun_name; echo "Started."; sleep 1 ;;
         2) systemctl stop ttun@$tun_name; echo "Stopped."; sleep 1 ;;
-        3) 
+        3) systemctl restart ttun@$tun_name; echo "Restarted."; sleep 1 ;;
+        4) 
+           echo -e "${CYAN}--- Status & Logs (Press Ctrl+C to exit) ---${NC}"
+           journalctl -u ttun@$tun_name -n 25 -f
+           ;;
+        5) 
            systemctl stop ttun@$tun_name >/dev/null 2>&1
            systemctl disable ttun@$tun_name >/dev/null 2>&1
-           rm "$CONFIG_DIR/$tun_name.conf"
+           rm -f "$CONFIG_DIR/$tun_name.conf"
            echo -e "${GREEN}Tunnel deleted.${NC}"; sleep 1 ;;
     esac
     manage_tunnels

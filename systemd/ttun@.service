@@ -7,8 +7,8 @@ Type=simple
 EnvironmentFile=/etc/ttun/%i.conf
 ExecStart=/usr/bin/ttun-core ${ROLE} ${LOCAL_PORT} ${REMOTE_IP} ${REMOTE_PORT} %i
 
-ExecStartPost=/bin/sleep 1
-ExecStartPost=/usr/bin/ip addr add ${TUN_IP} dev %i
+ExecStartPost=/bin/sleep 0.5
+ExecStartPost=/usr/bin/ip addr replace ${TUN_IP} dev %i
 ExecStartPost=/usr/bin/ip link set %i up
 
 Restart=always

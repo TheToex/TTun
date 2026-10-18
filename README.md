@@ -1,6 +1,6 @@
 # TTun — Toex Tunnel
 
-**TTun (Toex Tunnel)** is a lightweight and high-performance **Layer 3 TCP tunnel** written in pure C for Linux.
+**TTun** is a lightweight and high-performance **Layer 3 TCP tunnel** written in pure C for Linux.
 
 It provides an interactive CLI manager that makes it easy to create, configure, and manage multiple tunnels without dealing with complex commands manually.
 
